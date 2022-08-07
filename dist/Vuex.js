@@ -59,26 +59,28 @@ var isPlainObject = function isPlainObject(v) {
 var each = function each(target, fn) {
   if (isArray(target)) {
     for (var i = 0, l = target.length; i < l; i++) {
-      fn.call(target, i, target[i]);
+      fn(i, target[i]);
     }
   } else if (isPlainObject(target)) {
     var keys = Object.keys(target);
 
     for (var _i = 0, _l = keys.length; _i < _l; _i++) {
       var key = keys[_i];
-      fn.call(target, key, target[key]);
+      fn(key, target[key]);
     }
   }
 };
 
 var resetStoreVM = function resetStoreVM(store, state) {
   var computed = Object.create(null);
-  each(store._wrappedGetters, function (name, handler) {
-    computed[name] = handler;
-    Object.defineProperty(store, name, {
+  store.getters = Object.create(null);
+  each(store._wrappedGetters, function (name, wrappedGetter) {
+    computed[name] = wrappedGetter;
+    Object.defineProperty(store.getters, name, {
       get: function get() {
         return store._vm[name];
-      }
+      },
+      enumerable: true
     });
   });
   store._vm = new Vue({
@@ -97,12 +99,33 @@ var getNestedState = function getNestedState(rootState, path) {
   }, rootState);
 };
 
+var makeLocalContext = function makeLocalContext(store, path) {
+  var local = {
+    commit: store.commit,
+    dispatch: store.dispatch
+  };
+  Object.defineProperties(local, {
+    getters: {
+      get: function get() {
+        return store.getters;
+      }
+    },
+    state: {
+      get: function get() {
+        return getNestedState(store.state, path);
+      }
+    }
+  });
+  return local;
+};
+
 var installModule = function installModule(store, rootState, path, module) {
   if (path.length !== 0) {
     var parentState = getNestedState(rootState, path.slice(0, -1));
     Vue.set(parentState, path[path.length - 1], module.state);
   }
 
+  var local = module.context = makeLocalContext(store, path);
   var _module$_rawModule = module._rawModule,
       actions = _module$_rawModule.actions,
       mutations = _module$_rawModule.mutations,
@@ -112,7 +135,7 @@ var installModule = function installModule(store, rootState, path, module) {
     each(actions, function (name, handler) {
       var entry = store._actions[name] = store._actions[name] || [];
       entry.push(function wrappedActionHandler(payload) {
-        handler.call(store, payload);
+        handler.call(store, local, payload);
       });
     });
   }
@@ -121,7 +144,7 @@ var installModule = function installModule(store, rootState, path, module) {
     each(mutations, function (name, handler) {
       var entry = store._mutations[name] = store._mutations[name] || [];
       entry.push(function wrappedMutationHandler(payload) {
-        handler.call(store, payload);
+        handler.call(store, local.state, payload);
       });
     });
   }
@@ -129,7 +152,7 @@ var installModule = function installModule(store, rootState, path, module) {
   if (getters) {
     each(getters, function (name, handler) {
       store._wrappedGetters[name] = function wrappedGetter() {
-        handler();
+        return handler(local.getters, local.state, store.getters, store.state);
       };
     });
   }
@@ -211,20 +234,59 @@ var ModuleCollection = /*#__PURE__*/function () {
   return ModuleCollection;
 }();
 
-var Store = /*#__PURE__*/_createClass(function Store() {
-  var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
+var Store = /*#__PURE__*/function () {
+  function Store() {
+    var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
-  _classCallCheck(this, Store);
+    _classCallCheck(this, Store);
 
-  this._actions = Object.create(null);
-  this._mutations = Object.create(null);
-  this._wrappedGetters = Object.create(null);
-  this._modules = new ModuleCollection(options);
-  var state = this._modules.root.state;
-  installModule(this, state, [], this._modules.root);
-  resetStoreVM(this, state);
-  console.log(this);
-});
+    this._actions = Object.create(null);
+    this._mutations = Object.create(null);
+    this._wrappedGetters = Object.create(null);
+    this._modules = new ModuleCollection(options);
+    var store = this;
+    var commit = this.commit,
+        dispatch = this.dispatch;
+
+    this.dispatch = function boundDispatch(type, payload) {
+      dispatch.call(store, type, payload);
+    };
+
+    this.commit = function boundCommit(type, payload) {
+      // store.commit() => this 是 store
+      // context.commit() => this 是 context，即 local
+      // foo ({ commit }) { commit('bar') } => this 是 undefined
+      commit.call(store, type, payload);
+    };
+
+    var state = this._modules.root.state;
+    installModule(this, state, [], this._modules.root);
+    resetStoreVM(this, state); // console.log(this)
+  }
+
+  _createClass(Store, [{
+    key: "state",
+    get: function get() {
+      return this._vm._data.$$state;
+    }
+  }, {
+    key: "dispatch",
+    value: function dispatch(type, payload) {
+      each(this._actions[type], function (_, wrappedActionHandler) {
+        wrappedActionHandler(payload);
+      });
+    }
+  }, {
+    key: "commit",
+    value: function commit(type, payload) {
+      each(this._mutations[type], function (_, wrappedMutationHandler) {
+        wrappedMutationHandler(payload);
+      });
+    }
+  }]);
+
+  return Store;
+}();
 
 var index = {
   Store: Store,

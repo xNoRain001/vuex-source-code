@@ -3,14 +3,16 @@ import { each } from "./utils"
 
 const resetStoreVM = (store, state) => {
   const computed = Object.create(null)
+  store.getters = Object.create(null)
 
-  each(store._wrappedGetters, (name, handler) => {
-    computed[name] = handler
+  each(store._wrappedGetters, (name, wrappedGetter) => {
+    computed[name] = wrappedGetter
 
-    Object.defineProperty(store, name, {
+    Object.defineProperty(store.getters, name, {
       get () {
         return store._vm[name]
-      }
+      },
+      enumerable: true
     })
   })
 

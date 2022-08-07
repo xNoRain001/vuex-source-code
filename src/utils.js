@@ -5,7 +5,7 @@ const isPlainObject = v => Object.prototype.toString.call(v).slice(8, -1) === 'O
 const each = (target, fn) => {
   if (isArray(target)) {
     for (let i = 0, l = target.length; i < l; i++) {
-      fn.call(target, i, target[i])
+      fn(i, target[i])
     }
   }
   else if (isPlainObject(target)) {
@@ -13,7 +13,7 @@ const each = (target, fn) => {
 
     for (let i = 0, l = keys.length; i < l; i++) {
       const key = keys[i]
-      fn.call(target, key, target[key])
+      fn(key, target[key])
     }
   }
 }

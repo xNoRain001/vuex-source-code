@@ -1,4 +1,5 @@
-import getNestedState from "./getNestedState"
+import getNestedState from "./get-nested-state"
+import makeLocalContext from "./make-local-context"
 import { Vue } from "./install"
 import { each } from "./utils"
 
@@ -8,13 +9,14 @@ const installModule = (store, rootState, path, module) => {
     Vue.set(parentState, path[path.length - 1], module.state)
   }
 
+  const local = module.context = makeLocalContext(store, path)
   const { actions, mutations, getters } = module._rawModule
 
   if (actions) {
     each(actions, (name, handler) => {
       const entry = store._actions[name] = (store._actions[name] || [])
       entry.push(function wrappedActionHandler (payload) {
-        handler.call(store, payload)
+        handler.call(store, local, payload)
       })
     })
   }
@@ -23,7 +25,7 @@ const installModule = (store, rootState, path, module) => {
     each(mutations, (name, handler) => {
       const entry = store._mutations[name] = (store._mutations[name] || [])
       entry.push(function wrappedMutationHandler (payload) {
-        handler.call(store, payload)
+        handler.call(store, local.state, payload)
       })
     })
   }
@@ -31,7 +33,12 @@ const installModule = (store, rootState, path, module) => {
   if (getters) {
     each(getters, (name, handler) => {
       store._wrappedGetters[name] = function wrappedGetter () {
-        handler()
+        return handler(
+          local.getters,
+          local.state,
+          store.getters,
+          store.state
+        )
       }
     })
   }
