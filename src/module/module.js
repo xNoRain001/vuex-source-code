@@ -5,6 +5,10 @@ class Module {
     this.state = rawModule.state || {}
   }
 
+  get namespaced () {
+    return !!this._rawModule.namespaced
+  }
+
   // 添加 module
   addChild (name, module) {
     this._children[name] = module

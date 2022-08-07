@@ -99,16 +99,46 @@ var getNestedState = function getNestedState(rootState, path) {
   }, rootState);
 };
 
-var makeLocalContext = function makeLocalContext(store, path) {
+var makeLocalGetters = function makeLocalGetters(store, namespace) {
+  var _makeLocalGettersCache = store._makeLocalGettersCache;
+
+  if (_makeLocalGettersCache[namespace]) {
+    var length = namespace.length;
+    var proxyGetter = Object.create(null);
+    each(store.getters, function (name) {
+      if (name.slice(0, length) !== namespace) {
+        return;
+      }
+
+      var userDef = name.slice(namespace);
+      Object.defineProperty(proxyGetter, userDef, {
+        get: function get() {
+          store.getters[name];
+        }
+      });
+    });
+    _makeLocalGettersCache[namespace] = proxyGetter;
+  }
+
+  return _makeLocalGettersCache[namespace];
+};
+
+var makeLocalContext = function makeLocalContext(store, namespace, path) {
   var local = {
-    commit: store.commit,
-    dispatch: store.dispatch
+    commit: !namespace ? store.commit : function (type, payload) {
+      type = namespace + type;
+      store.commit(type, payload);
+    },
+    dispatch: !namespace ? store.dispatch : function (type, payload) {
+      type = namespace + type;
+      store.dispatch(type, payload);
+    }
   };
   Object.defineProperties(local, {
     getters: {
-      get: function get() {
+      get: namespace ? function () {
         return store.getters;
-      }
+      } : makeLocalGetters(store, namespace)
     },
     state: {
       get: function get() {
@@ -120,12 +150,15 @@ var makeLocalContext = function makeLocalContext(store, path) {
 };
 
 var installModule = function installModule(store, rootState, path, module) {
+  // 每次都从根模块找到
+  var namespace = store._modules.getNameSpace(path);
+
   if (path.length !== 0) {
     var parentState = getNestedState(rootState, path.slice(0, -1));
     Vue.set(parentState, path[path.length - 1], module.state);
   }
 
-  var local = module.context = makeLocalContext(store, path);
+  var local = module.context = makeLocalContext(store, namespace, path);
   var _module$_rawModule = module._rawModule,
       actions = _module$_rawModule.actions,
       mutations = _module$_rawModule.mutations,
@@ -133,6 +166,7 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (actions) {
     each(actions, function (name, handler) {
+      name = namespace + name;
       var entry = store._actions[name] = store._actions[name] || [];
       entry.push(function wrappedActionHandler(payload) {
         handler.call(store, local, payload);
@@ -142,6 +176,7 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (mutations) {
     each(mutations, function (name, handler) {
+      name = namespace + name;
       var entry = store._mutations[name] = store._mutations[name] || [];
       entry.push(function wrappedMutationHandler(payload) {
         handler.call(store, local.state, payload);
@@ -151,6 +186,8 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (getters) {
     each(getters, function (name, handler) {
+      name = namespace + name;
+
       store._wrappedGetters[name] = function wrappedGetter() {
         return handler(local.getters, local.state, store.getters, store.state);
       };
@@ -173,10 +210,15 @@ var Module = /*#__PURE__*/function () {
     this._children = Object.create(null);
     this._rawModule = rawModule;
     this.state = rawModule.state || {};
-  } // 添加 module
-
+  }
 
   _createClass(Module, [{
+    key: "namespaced",
+    get: function get() {
+      return !!this._rawModule.namespaced;
+    } // 添加 module
+
+  }, {
     key: "addChild",
     value: function addChild(name, module) {
       this._children[name] = module;
@@ -228,6 +270,16 @@ var ModuleCollection = /*#__PURE__*/function () {
       return path.reduce(function (module, name) {
         return module.getChild(name);
       }, this.root);
+    } // 拼接出 namespace
+
+  }, {
+    key: "getNameSpace",
+    value: function getNameSpace(path) {
+      var module = this.root;
+      return path.reduce(function (namespace, name) {
+        module = module.getChild(name);
+        return namespace += module.namespaced ? "".concat(name, "/") : '';
+      }, '');
     }
   }]);
 
@@ -243,6 +295,7 @@ var Store = /*#__PURE__*/function () {
     this._actions = Object.create(null);
     this._mutations = Object.create(null);
     this._wrappedGetters = Object.create(null);
+    this._makeLocalGettersCache = Object.create(null);
     this._modules = new ModuleCollection(options);
     var store = this;
     var commit = this.commit,

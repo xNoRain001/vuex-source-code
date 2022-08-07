@@ -31,6 +31,16 @@ class ModuleCollection {
       return module.getChild(name)
     }, this.root)
   }
+
+  // 拼接出 namespace
+  getNameSpace (path) {
+    let module = this.root
+
+    return path.reduce((namespace, name) => {
+      module = module.getChild(name)
+      return namespace += (module.namespaced ? `${ name }/` : '')
+    }, '')
+  }
 }
 
 export default ModuleCollection

@@ -4,16 +4,20 @@ import { Vue } from "./install"
 import { each } from "./utils"
 
 const installModule = (store, rootState, path, module) => {
+  // 每次都从根模块找到
+  const namespace = store._modules.getNameSpace(path)
+
   if (path.length !== 0) {
     const parentState = getNestedState(rootState, path.slice(0, -1))
     Vue.set(parentState, path[path.length - 1], module.state)
   }
 
-  const local = module.context = makeLocalContext(store, path)
+  const local = module.context = makeLocalContext(store, namespace, path)
   const { actions, mutations, getters } = module._rawModule
 
   if (actions) {
     each(actions, (name, handler) => {
+      name = namespace + name
       const entry = store._actions[name] = (store._actions[name] || [])
       entry.push(function wrappedActionHandler (payload) {
         handler.call(store, local, payload)
@@ -23,6 +27,7 @@ const installModule = (store, rootState, path, module) => {
 
   if (mutations) {
     each(mutations, (name, handler) => {
+      name = namespace + name
       const entry = store._mutations[name] = (store._mutations[name] || [])
       entry.push(function wrappedMutationHandler (payload) {
         handler.call(store, local.state, payload)
@@ -32,6 +37,7 @@ const installModule = (store, rootState, path, module) => {
 
   if (getters) {
     each(getters, (name, handler) => {
+      name = namespace + name
       store._wrappedGetters[name] = function wrappedGetter () {
         return handler(
           local.getters,

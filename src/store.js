@@ -8,6 +8,7 @@ class Store {
     this._actions = Object.create(null)
     this._mutations = Object.create(null)
     this._wrappedGetters = Object.create(null)
+    this._makeLocalGettersCache = Object.create(null)
     this._modules = new ModuleCollection(options)
 
     const store = this
@@ -29,8 +30,6 @@ class Store {
     installModule(this, state, [], this._modules.root)
 
     resetStoreVM(this, state)
-
-    
 
     // console.log(this)
   }
