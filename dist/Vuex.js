@@ -23,12 +23,6 @@ function _createClass(Constructor, protoProps, staticProps) {
   return Constructor;
 }
 
-var getNestedState = function getNestedState(rootState, path) {
-  return path.reduce(function (state, key) {
-    return state[key];
-  }, rootState);
-};
-
 var Vue;
 
 var install = function install(_Vue) {
@@ -77,6 +71,32 @@ var each = function each(target, fn) {
   }
 };
 
+var resetStoreVM = function resetStoreVM(store, state) {
+  var computed = Object.create(null);
+  each(store._wrappedGetters, function (name, handler) {
+    computed[name] = handler;
+    Object.defineProperty(store, name, {
+      get: function get() {
+        return store._vm[name];
+      }
+    });
+  });
+  store._vm = new Vue({
+    data: function data() {
+      return {
+        $$state: state
+      };
+    },
+    computed: computed
+  });
+};
+
+var getNestedState = function getNestedState(rootState, path) {
+  return path.reduce(function (state, key) {
+    return state[key];
+  }, rootState);
+};
+
 var installModule = function installModule(store, rootState, path, module) {
   if (path.length !== 0) {
     var parentState = getNestedState(rootState, path.slice(0, -1));
@@ -90,19 +110,27 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (actions) {
     each(actions, function (name, handler) {
-      (store._actions[name] = store._actions[name] || []).push(handler);
+      var entry = store._actions[name] = store._actions[name] || [];
+      entry.push(function wrappedActionHandler(payload) {
+        handler.call(store, payload);
+      });
     });
   }
 
   if (mutations) {
     each(mutations, function (name, handler) {
-      (store._mutations[name] = store._mutations[name] || []).push(handler);
+      var entry = store._mutations[name] = store._mutations[name] || [];
+      entry.push(function wrappedMutationHandler(payload) {
+        handler.call(store, payload);
+      });
     });
   }
 
   if (getters) {
     each(getters, function (name, handler) {
-      store._wrappedGetters[name] = handler;
+      store._wrappedGetters[name] = function wrappedGetter() {
+        handler();
+      };
     });
   }
 
@@ -192,7 +220,9 @@ var Store = /*#__PURE__*/_createClass(function Store() {
   this._mutations = Object.create(null);
   this._wrappedGetters = Object.create(null);
   this._modules = new ModuleCollection(options);
-  installModule(this, this._modules.root.state, [], this._modules.root);
+  var state = this._modules.root.state;
+  installModule(this, state, [], this._modules.root);
+  resetStoreVM(this, state);
   console.log(this);
 });
 

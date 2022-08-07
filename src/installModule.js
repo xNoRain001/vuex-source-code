@@ -12,19 +12,27 @@ const installModule = (store, rootState, path, module) => {
 
   if (actions) {
     each(actions, (name, handler) => {
-      (store._actions[name] = store._actions[name] || []).push(handler)
+      const entry = store._actions[name] = (store._actions[name] || [])
+      entry.push(function wrappedActionHandler (payload) {
+        handler.call(store, payload)
+      })
     })
   }
 
   if (mutations) {
     each(mutations, (name, handler) => {
-      (store._mutations[name] = store._mutations[name] || []).push(handler)
+      const entry = store._mutations[name] = (store._mutations[name] || [])
+      entry.push(function wrappedMutationHandler (payload) {
+        handler.call(store, payload)
+      })
     })
   }
 
   if (getters) {
     each(getters, (name, handler) => {
-      store._wrappedGetters[name] = handler
+      store._wrappedGetters[name] = function wrappedGetter () {
+        handler()
+      }
     })
   }
   
