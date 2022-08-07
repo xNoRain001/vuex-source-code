@@ -12,7 +12,6 @@ const makeLocalGetters = (store, namespace) => {
         return
       }
 
-      
       const userDef = name.slice(namespace)
 
       Object.defineProperty(proxyGetter, userDef, {

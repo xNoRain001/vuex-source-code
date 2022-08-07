@@ -288,10 +288,13 @@ var ModuleCollection = /*#__PURE__*/function () {
 
 var Store = /*#__PURE__*/function () {
   function Store() {
+    var _this = this;
+
     var options = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
 
     _classCallCheck(this, Store);
 
+    this._subscribers = [];
     this._actions = Object.create(null);
     this._mutations = Object.create(null);
     this._wrappedGetters = Object.create(null);
@@ -314,7 +317,11 @@ var Store = /*#__PURE__*/function () {
 
     var state = this._modules.root.state;
     installModule(this, state, [], this._modules.root);
-    resetStoreVM(this, state); // console.log(this)
+    resetStoreVM(this, state);
+    var plugins = options.plugins;
+    each(plugins, function (_, plugin) {
+      plugin(_this);
+    }); // console.log(this)
   }
 
   _createClass(Store, [{
@@ -332,9 +339,24 @@ var Store = /*#__PURE__*/function () {
   }, {
     key: "commit",
     value: function commit(type, payload) {
+      var _this2 = this;
+
+      var mutation = {
+        type: type,
+        payload: payload
+      };
       each(this._mutations[type], function (_, wrappedMutationHandler) {
         wrappedMutationHandler(payload);
       });
+      each(this._subscribers, function (_, sub) {
+        sub(mutation, _this2.state);
+      });
+    }
+  }, {
+    key: "subscribe",
+    value: function subscribe(fn) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      genericSubscribe(this._subscribers, fn, options);
     }
   }]);
 

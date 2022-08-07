@@ -5,6 +5,7 @@ import { each } from "./utils"
 
 class Store {
   constructor (options = {}) {
+    this._subscribers = []
     this._actions = Object.create(null)
     this._mutations = Object.create(null)
     this._wrappedGetters = Object.create(null)
@@ -28,8 +29,13 @@ class Store {
     const { state } = this._modules.root
     
     installModule(this, state, [], this._modules.root)
-
     resetStoreVM(this, state)
+
+    const { plugins } = options
+
+    each(plugins, (_, plugin) => {
+      plugin(this)
+    })
 
     // console.log(this)
   }
@@ -45,9 +51,22 @@ class Store {
   }
 
   commit (type, payload) {
+    const mutation = {
+      type,
+      payload
+    }
+
     each(this._mutations[type], (_, wrappedMutationHandler) => {
       wrappedMutationHandler(payload)
     })
+
+    each(this._subscribers, (_, sub) => {
+      sub(mutation, this.state)
+    })
+  }
+
+  subscribe (fn, options = {}) {
+    genericSubscribe(this._subscribers, fn, options)
   }
 }
 
