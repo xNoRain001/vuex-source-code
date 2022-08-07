@@ -24,4 +24,8 @@ const applyMixin = (Vue) => {
   })
 }
 
+export {
+  Vue
+}
+
 export default install

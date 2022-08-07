@@ -1,8 +1,8 @@
 class Module {
   constructor (rawModule) {
-    this._children = []
+    this._children = Object.create(null)
     this._rawModule = rawModule
-    this.state = rawModule.state
+    this.state = rawModule.state || {}
   }
 
   // 添加 module
