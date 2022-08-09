@@ -2,6 +2,7 @@ import { Vue } from "./install"
 import { each } from "./utils"
 
 const resetStoreVM = (store, state) => {
+  const oldVm = store._vm
   const computed = Object.create(null)
   store.getters = Object.create(null)
 
@@ -24,6 +25,10 @@ const resetStoreVM = (store, state) => {
     },
     computed
   })
+
+  if (oldVm) {
+    Vue.nextTick(() => oldVm.$destory())
+  }
 }
 
 export default resetStoreVM

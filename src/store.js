@@ -2,7 +2,7 @@ import resetStoreVM from "./reset-store-vm"
 import installModule from "./install-module"
 import unifyObjectStyle from "./unify-object-style"
 import ModuleCollection from "./module/module-collection"
-import { each, isFunction } from "./utils"
+import { each, isString, isFunction } from "./utils"
 
 class Store {
   constructor (options = {}) {
@@ -104,6 +104,17 @@ class Store {
       ? { before: fn }
       : fn
     genericSubscribe(this._subscribers, sub, options)
+  }
+
+  registerModule (path, rawModule) {
+    path = isString(path)
+      ? [path]
+      : path
+
+    this._modules.register(path, rawModule)
+    const { state } = this
+    installModule(this, state, path, this._modules.get(path))
+    resetStoreVM(this, state)
   }
 }
 

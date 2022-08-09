@@ -48,6 +48,10 @@ var applyMixin = function applyMixin(Vue) {
   });
 };
 
+var isString = function isString(v) {
+  return typeof v === 'string';
+};
+
 var isArray = function isArray(v) {
   return Array.isArray(v);
 };
@@ -80,6 +84,7 @@ var each = function each(target, fn) {
 };
 
 var resetStoreVM = function resetStoreVM(store, state) {
+  var oldVm = store._vm;
   var computed = Object.create(null);
   store.getters = Object.create(null);
   each(store._wrappedGetters, function (name, wrappedGetter) {
@@ -99,6 +104,12 @@ var resetStoreVM = function resetStoreVM(store, state) {
     },
     computed: computed
   });
+
+  if (oldVm) {
+    Vue.nextTick(function () {
+      return oldVm.$destory();
+    });
+  }
 };
 
 var getNestedState = function getNestedState(rootState, path) {
@@ -449,6 +460,17 @@ var Store = /*#__PURE__*/function () {
         before: fn
       } : fn;
       genericSubscribe(this._subscribers, sub, options);
+    }
+  }, {
+    key: "registerModule",
+    value: function registerModule(path, rawModule) {
+      path = isString(path) ? [path] : path;
+
+      this._modules.register(path, rawModule);
+
+      var state = this.state;
+      installModule(this, state, path, this._modules.get(path));
+      resetStoreVM(this, state);
     }
   }]);
 

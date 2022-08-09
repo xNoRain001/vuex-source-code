@@ -1,3 +1,5 @@
+const isString = v => typeof v === 'string'
+
 const isArray = v => Array.isArray(v)
 
 const isPlainObject = v => Object.prototype.toString.call(v).slice(8, -1) === 'Object'
@@ -24,6 +26,7 @@ const each = (target, fn) => {
 
 export {
   each,
+  isString,
   isPromise,
   isFunction,
   isPlainObject
