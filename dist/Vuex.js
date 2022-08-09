@@ -153,7 +153,7 @@ var makeLocalContext = function makeLocalContext(store, namespace, path) {
           options = args.options;
       var type = args.type;
 
-      if (!options || options.root) {
+      if (!options || !options.root) {
         type = namespace + type;
       }
 
@@ -165,7 +165,7 @@ var makeLocalContext = function makeLocalContext(store, namespace, path) {
           options = args.options;
       var type = args.type;
 
-      if (!options || options.root) {
+      if (!options || !options.root) {
         type = namespace + type;
       }
 
@@ -204,7 +204,8 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (actions) {
     each(actions, function (name, handler) {
-      name = namespace + name;
+      name = handler.root ? name : namespace + name;
+      handler = handler.handler || handler;
       var entry = store._actions[name] = store._actions[name] || [];
       entry.push(function wrappedActionHandler(payload) {
         var res = handler.call(store, local, payload);

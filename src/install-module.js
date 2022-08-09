@@ -1,7 +1,7 @@
 import getNestedState from "./get-nested-state"
 import makeLocalContext from "./make-local-context"
 import { Vue } from "./install"
-import { each, isPromise } from "./utils"
+import { each, isPromise, isPlainObject } from "./utils"
 
 const installModule = (store, rootState, path, module) => {
   // 每次都从根模块找到
@@ -17,7 +17,8 @@ const installModule = (store, rootState, path, module) => {
 
   if (actions) {
     each(actions, (name, handler) => {
-      name = namespace + name
+      name = handler.root ? name : namespace + name
+      handler = handler.handler || handler
       const entry = store._actions[name] = (store._actions[name] || [])
       entry.push(function wrappedActionHandler (payload) {
         let res = handler.call(store, local, payload)

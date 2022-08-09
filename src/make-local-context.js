@@ -9,7 +9,7 @@ const makeLocalContext = (store, namespace, path) => {
       const { payload, options } = args
       let { type } = args
 
-      if (!options || options.root) {
+      if (!options || !options.root) {
         type = namespace + type
       }
 
@@ -21,7 +21,7 @@ const makeLocalContext = (store, namespace, path) => {
       const { payload, options } = args
       let { type } = args
 
-      if (!options || options.root) {
+      if (!options || !options.root) {
         type = namespace + type
       }
 
