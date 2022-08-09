@@ -4,6 +4,8 @@ const isPlainObject = v => Object.prototype.toString.call(v).slice(8, -1) === 'O
 
 const isFunction = v => typeof v === 'function'
 
+const isPromise = v => v && isFunction(v)
+
 const each = (target, fn) => {
   if (isArray(target)) {
     for (let i = 0, l = target.length; i < l; i++) {
@@ -22,5 +24,7 @@ const each = (target, fn) => {
 
 export {
   each,
-  isFunction
+  isPromise,
+  isFunction,
+  isPlainObject
 }

@@ -1,5 +1,6 @@
 import resetStoreVM from "./reset-store-vm"
 import installModule from "./install-module"
+import unifyObjectStyle from "./unify-object-style"
 import ModuleCollection from "./module/module-collection"
 import { each, isFunction } from "./utils"
 
@@ -45,7 +46,8 @@ class Store {
     return this._vm._data.$$state
   }
 
-  dispatch (type, payload) {
+  dispatch (_type, _payload) {
+    const {type, payload} = unifyObjectStyle(_type, _payload)
     const action = {
       type,
       payload
@@ -77,7 +79,8 @@ class Store {
     })
   }
 
-  commit (type, payload) {
+  commit (_type, _payload) {
+    const {type, payload} = unifyObjectStyle(_type, _payload)
     const mutation = {
       type,
       payload

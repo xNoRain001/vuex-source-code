@@ -56,6 +56,14 @@ var isPlainObject = function isPlainObject(v) {
   return Object.prototype.toString.call(v).slice(8, -1) === 'Object';
 };
 
+var isFunction = function isFunction(v) {
+  return typeof v === 'function';
+};
+
+var isPromise = function isPromise(v) {
+  return v && isFunction(v);
+};
+
 var each = function each(target, fn) {
   if (isArray(target)) {
     for (var i = 0, l = target.length; i < l; i++) {
@@ -123,14 +131,44 @@ var makeLocalGetters = function makeLocalGetters(store, namespace) {
   return _makeLocalGettersCache[namespace];
 };
 
+var unifyObjectStyle = function unifyObjectStyle(type, payload, options) {
+  if (isPlainObject(type) && type.type) {
+    options = payload;
+    payload = type;
+    type = type.type;
+  }
+
+  return {
+    type: type,
+    payload: payload,
+    options: options
+  };
+};
+
 var makeLocalContext = function makeLocalContext(store, namespace, path) {
   var local = {
-    commit: !namespace ? store.commit : function (type, payload) {
-      type = namespace + type;
+    commit: !namespace ? store.commit : function (_type, _payload, _options) {
+      var args = unifyObjectStyle(_type, _payload, _options);
+      var payload = args.payload,
+          options = args.options;
+      var type = args.type;
+
+      if (!options || options.root) {
+        type = namespace + type;
+      }
+
       store.commit(type, payload);
     },
-    dispatch: !namespace ? store.dispatch : function (type, payload) {
-      type = namespace + type;
+    dispatch: !namespace ? store.dispatch : function (_type, _payload, _options) {
+      var args = unifyObjectStyle(_type, _payload, _options);
+      var payload = args.payload,
+          options = args.options;
+      var type = args.type;
+
+      if (!options || options.root) {
+        type = namespace + type;
+      }
+
       store.dispatch(type, payload);
     }
   };
@@ -169,7 +207,13 @@ var installModule = function installModule(store, rootState, path, module) {
       name = namespace + name;
       var entry = store._actions[name] = store._actions[name] || [];
       entry.push(function wrappedActionHandler(payload) {
-        handler.call(store, local, payload);
+        var res = handler.call(store, local, payload);
+
+        if (!isPromise(res)) {
+          res = Promise.resolve(res);
+        }
+
+        return res;
       });
     });
   }
@@ -295,6 +339,7 @@ var Store = /*#__PURE__*/function () {
     _classCallCheck(this, Store);
 
     this._subscribers = [];
+    this._actionSubscribes = [];
     this._actions = Object.create(null);
     this._mutations = Object.create(null);
     this._wrappedGetters = Object.create(null);
@@ -331,15 +376,52 @@ var Store = /*#__PURE__*/function () {
     }
   }, {
     key: "dispatch",
-    value: function dispatch(type, payload) {
-      each(this._actions[type], function (_, wrappedActionHandler) {
-        wrappedActionHandler(payload);
+    value: function dispatch(_type, _payload) {
+      var _this2 = this;
+
+      var _unifyObjectStyle = unifyObjectStyle(_type, _payload),
+          type = _unifyObjectStyle.type,
+          payload = _unifyObjectStyle.payload;
+
+      var action = {
+        type: type,
+        payload: payload
+      };
+      each(this._actionSubscribes.filter(function (sub) {
+        return sub.before;
+      }), function (_, sub) {
+        sub.before(action, _this2.state);
+      });
+      var entry = this._actions[type];
+      var result = entry.length > 1 ? entry.map(function (wrappedActionHandler) {
+        return wrappedActionHandler(payload);
+      }) : entry[0](payload);
+      return new Promise(function (resolve, reject) {
+        result.then(function (res) {
+          each(_this2._actionSubscribes.filter(function (sub) {
+            return sub.after;
+          }), function (_, sub) {
+            sub.after(action, _this2.state);
+          });
+          resolve(res);
+        }, function (error) {
+          each(_this2._actionSubscribes.filter(function (sub) {
+            return sub.error;
+          }), function (_, sub) {
+            sub.error(action, _this2.state, error);
+          });
+          reject(error);
+        });
       });
     }
   }, {
     key: "commit",
-    value: function commit(type, payload) {
-      var _this2 = this;
+    value: function commit(_type, _payload) {
+      var _this3 = this;
+
+      var _unifyObjectStyle2 = unifyObjectStyle(_type, _payload),
+          type = _unifyObjectStyle2.type,
+          payload = _unifyObjectStyle2.payload;
 
       var mutation = {
         type: type,
@@ -349,7 +431,7 @@ var Store = /*#__PURE__*/function () {
         wrappedMutationHandler(payload);
       });
       each(this._subscribers, function (_, sub) {
-        sub(mutation, _this2.state);
+        sub(mutation, _this3.state);
       });
     }
   }, {
@@ -357,6 +439,15 @@ var Store = /*#__PURE__*/function () {
     value: function subscribe(fn) {
       var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
       genericSubscribe(this._subscribers, fn, options);
+    }
+  }, {
+    key: "subscribeAction",
+    value: function subscribeAction(fn) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var sub = isFunction(fn) ? {
+        before: fn
+      } : fn;
+      genericSubscribe(this._subscribers, sub, options);
     }
   }]);
 
