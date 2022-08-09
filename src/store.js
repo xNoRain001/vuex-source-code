@@ -1,11 +1,12 @@
 import resetStoreVM from "./reset-store-vm"
 import installModule from "./install-module"
 import ModuleCollection from "./module/module-collection"
-import { each } from "./utils"
+import { each, isFunction } from "./utils"
 
 class Store {
   constructor (options = {}) {
     this._subscribers = []
+    this._actionSubscribes = []
     this._actions = Object.create(null)
     this._mutations = Object.create(null)
     this._wrappedGetters = Object.create(null)
@@ -45,8 +46,34 @@ class Store {
   }
 
   dispatch (type, payload) {
-    each(this._actions[type], (_, wrappedActionHandler) => {
-      wrappedActionHandler(payload)
+    const action = {
+      type,
+      payload
+    }
+
+    each(this._actionSubscribes.filter(sub => sub.before), (_, sub) => {
+      sub.before(action, this.state)
+    })
+      
+    const entry = this._actions[type]
+    const result = entry.length > 1
+      ? entry.map(wrappedActionHandler => wrappedActionHandler(payload))
+      : entry[0](payload)
+
+    return new Promise((resolve, reject) => {
+      result.then(res => {
+        each(this._actionSubscribes.filter(sub => sub.after), (_, sub) => {
+          sub.after(action, this.state)
+        })
+
+        resolve(res)
+      }, error => {
+        each(this._actionSubscribes.filter(sub => sub.error), (_, sub) => {
+          sub.error(action, this.state, error)
+        })
+
+        reject(error)
+      })
     })
   }
 
@@ -67,6 +94,13 @@ class Store {
 
   subscribe (fn, options = {}) {
     genericSubscribe(this._subscribers, fn, options)
+  }
+
+  subscribeAction (fn, options = {}) {
+    const sub = isFunction(fn)
+      ? { before: fn }
+      : fn
+    genericSubscribe(this._subscribers, sub, options)
   }
 }
 
