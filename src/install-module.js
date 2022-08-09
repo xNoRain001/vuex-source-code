@@ -9,7 +9,9 @@ const installModule = (store, rootState, path, module) => {
 
   if (path.length !== 0) {
     const parentState = getNestedState(rootState, path.slice(0, -1))
-    Vue.set(parentState, path[path.length - 1], module.state)
+    store._withCommit(() => {
+      Vue.set(parentState, path[path.length - 1], module.state)
+    })
   }
 
   const local = module.context = makeLocalContext(store, namespace, path)

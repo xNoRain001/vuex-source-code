@@ -1,3 +1,4 @@
+import enableStrictMode from "./enable-strict-mode"
 import { Vue } from "./install"
 import { each } from "./utils"
 
@@ -25,6 +26,10 @@ const resetStoreVM = (store, state) => {
     },
     computed
   })
+
+  if (store.strict) {
+    enableStrictMode(store)
+  }
 
   if (oldVm) {
     Vue.nextTick(() => oldVm.$destory())

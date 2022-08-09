@@ -23,6 +23,17 @@ function _createClass(Constructor, protoProps, staticProps) {
   return Constructor;
 }
 
+var enableStrictMode = function enableStrictMode(store) {
+  store._vm.$watch(function () {
+    return this._data.$$state;
+  }, function () {
+    console.assert(store._committing, 'error');
+  }, {
+    deep: true,
+    sync: true
+  });
+};
+
 var Vue;
 
 var install = function install(_Vue) {
@@ -104,6 +115,10 @@ var resetStoreVM = function resetStoreVM(store, state) {
     },
     computed: computed
   });
+
+  if (store.strict) {
+    enableStrictMode(store);
+  }
 
   if (oldVm) {
     Vue.nextTick(function () {
@@ -204,7 +219,10 @@ var installModule = function installModule(store, rootState, path, module) {
 
   if (path.length !== 0) {
     var parentState = getNestedState(rootState, path.slice(0, -1));
-    Vue.set(parentState, path[path.length - 1], module.state);
+
+    store._withCommit(function () {
+      Vue.set(parentState, path[path.length - 1], module.state);
+    });
   }
 
   var local = module.context = makeLocalContext(store, namespace, path);
@@ -350,6 +368,7 @@ var Store = /*#__PURE__*/function () {
 
     _classCallCheck(this, Store);
 
+    this._committing = false;
     this._subscribers = [];
     this._actionSubscribes = [];
     this._actions = Object.create(null);
@@ -372,13 +391,15 @@ var Store = /*#__PURE__*/function () {
       commit.call(store, type, payload);
     };
 
+    var plugins = options.plugins,
+        strict = options.strict;
+    this.strict = strict;
     var state = this._modules.root.state;
     installModule(this, state, [], this._modules.root);
     resetStoreVM(this, state);
-    var plugins = options.plugins;
     each(plugins, function (_, plugin) {
       plugin(_this);
-    }); // console.log(this)
+    });
   }
 
   _createClass(Store, [{
@@ -439,11 +460,24 @@ var Store = /*#__PURE__*/function () {
         type: type,
         payload: payload
       };
-      each(this._mutations[type], function (_, wrappedMutationHandler) {
-        wrappedMutationHandler(payload);
+
+      this._withCommit(function () {
+        each(_this3._mutations[type], function (_, wrappedMutationHandler) {
+          wrappedMutationHandler(payload);
+        });
       });
+
       each(this._subscribers, function (_, sub) {
         sub(mutation, _this3.state);
+      });
+    }
+  }, {
+    key: "replaceState",
+    value: function replaceState(state) {
+      var _this4 = this;
+
+      this._witchCommit(function () {
+        _this4._vm._data.$$state = state;
       });
     }
   }, {
@@ -471,6 +505,14 @@ var Store = /*#__PURE__*/function () {
       var state = this.state;
       installModule(this, state, path, this._modules.get(path));
       resetStoreVM(this, state);
+    }
+  }, {
+    key: "_withCommit",
+    value: function _withCommit(fn) {
+      var _committing = this._committing;
+      this._withCommitting = true;
+      fn();
+      this._withCommitting = _committing;
     }
   }]);
 

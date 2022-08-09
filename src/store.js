@@ -6,6 +6,7 @@ import { each, isString, isFunction } from "./utils"
 
 class Store {
   constructor (options = {}) {
+    this._committing = false
     this._subscribers = []
     this._actionSubscribes = []
     this._actions = Object.create(null)
@@ -28,18 +29,17 @@ class Store {
       commit.call(store, type, payload)
     }
 
+    const { plugins, strict } = options
+    this.strict = strict
+
     const { state } = this._modules.root
     
     installModule(this, state, [], this._modules.root)
     resetStoreVM(this, state)
 
-    const { plugins } = options
-
     each(plugins, (_, plugin) => {
       plugin(this)
     })
-
-    // console.log(this)
   }
 
   get state () {
@@ -86,12 +86,20 @@ class Store {
       payload
     }
 
-    each(this._mutations[type], (_, wrappedMutationHandler) => {
-      wrappedMutationHandler(payload)
+    this._withCommit(() => {
+      each(this._mutations[type], (_, wrappedMutationHandler) => {
+        wrappedMutationHandler(payload)
+      })
     })
 
     each(this._subscribers, (_, sub) => {
       sub(mutation, this.state)
+    })
+  }
+
+  replaceState (state) {
+    this._witchCommit(() => {
+      this._vm._data.$$state = state
     })
   }
 
@@ -115,6 +123,13 @@ class Store {
     const { state } = this
     installModule(this, state, path, this._modules.get(path))
     resetStoreVM(this, state)
+  }
+
+  _withCommit (fn) {
+    const { _committing } = this
+    this._withCommitting = true
+    fn()
+    this._withCommitting = _committing
   }
 }
 
